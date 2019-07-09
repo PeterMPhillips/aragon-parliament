@@ -1,0 +1,10 @@
+{
+  "name": "Parliament",
+  "description": "Discussion for each vote proposal",
+  "icons": [{
+    "src": "/dist/images/icon.png",
+    "sizes": "22x22"
+  }],
+  "script": "/script.js",
+  "start_url": "/index.html"
+}
