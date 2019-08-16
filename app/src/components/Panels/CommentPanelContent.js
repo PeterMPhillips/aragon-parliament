@@ -1,7 +1,9 @@
 import 'babel-polyfill'
 import React from 'react'
 import styled from 'styled-components'
-import { Button, Field, IconError, Text, TextInput, Info, theme } from '@aragon/ui'
+import showdown from 'showdown'
+import { Button, Field, IconError, SidePanelSeparator, Text, TextInput, Info, theme } from '@aragon/ui'
+import LocalIdentityBadge from '../LocalIdentityBadge/LocalIdentityBadge'
 //import CircularProgress from '@material-ui/core/CircularProgress'
 
 const initialState = {
@@ -39,7 +41,6 @@ class CommentPanelContent extends React.Component {
     event.preventDefault()
     const { messageField } = this.state
     const { voteID, parentID, parentIPFS, onSubmit } = this.props
-
     this.setState({
       messageField: ''
     })
@@ -53,7 +54,7 @@ class CommentPanelContent extends React.Component {
   }
 
   render() {
-    const { parentComment } = this.props
+    const { parentAuthor, parentComment } = this.props
     const {
       messageField,
       error,
@@ -61,35 +62,93 @@ class CommentPanelContent extends React.Component {
       messages,
     } = this.state
 
+    const converter = new showdown.Converter()
+    const commentHTML = converter.makeHtml(parentComment)
+
     return (
       <div>
-        <div>
-          {parentComment}
-        </div>
-        <form onSubmit={this.handleSubmit}>
-          <Field
-            label='Message'
-          >
-            <TextInput
-              innerRef={element => (this.messageInput = element)}
-              value={messageField}
-              onChange={this.handleMessageChange}
-            />
-          </Field>
-          <Button
-            mode="strong"
-            type="submit"
-          >
-            Submit
-          </Button>
-        </form>
+        {(parentAuthor && parentAuthor != '') && (
+          <div>
+            <Part>
+              <h2>
+                <Label>Responding To</Label>
+              </h2>
+              <div
+                css={`
+                  display: flex;
+                  align-items: center;
+                `}
+              >
+                <LocalIdentityBadge entity={parentAuthor} shorten={false}/>
+              </div>
+            </Part>
+            <SidePanelSeparator />
+            <Part>
+              <h2>
+                <Label>Message</Label>
+              </h2>
+              <div dangerouslySetInnerHTML={{ __html: commentHTML }}/>
+            </Part>
+            <SidePanelSeparator />
+          </div>
+        )}
+        <Part>
+          <form onSubmit={this.handleSubmit}>
+            <Field
+              label='Response'
+            >
+              <TextArea
+                ref={element => (this.messageInput = element)}
+                value={messageField}
+                onChange={this.handleMessageChange}
+                wide
+              />
+            </Field>
+            <Button
+              mode="strong"
+              type="submit"
+              wide
+            >
+              Submit
+            </Button>
+          </form>
+        </Part>
       </div>
     )
   }
 }
 
-const Messages = styled.div`
-  margin-top: 15px;
+const Label = styled(Text).attrs({
+  smallcaps: true,
+  color: theme.textSecondary,
+})`
+  display: block;
+  margin-bottom: 10px;
+`
+
+const Part = styled.div`
+  padding: 20px 0;
+  h2 {
+    margin-top: 20px;
+    &:first-child {
+      margin-top: 0;
+    }
+  }
+`
+
+const TextArea = styled.textarea`
+  width:100%;
+  max-width:100%;
+  min-width:100%;
+  height:100px;
+  min-height:33px;
+  padding:5px 10px;
+  border: 1px solid rgba(209, 209, 209, 0.5);
+  border-radius: 3px;
+  &:focus {
+    outline: none;
+    border-color: ${theme.contentBorderActive};
+  }
 `
 
 const WarningMessage = ({ message }) => <Info.Action>{message}</Info.Action>

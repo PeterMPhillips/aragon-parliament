@@ -31,14 +31,17 @@ class App extends React.PureComponent {
   static defaultProps = {
     open: [],
     closed: [],
-    comments: [],
+    comments: {},
+    commentPoints: {},
+    tokenSymbol: '',
+    tokenDecimals: 0,
     connectedAccount: '',
     tokenAddress: null,
   }
 
   state = {
     voteID: null,
-    metadata: '',
+    vote: null,
     parentID: 0,
     parentComment: '',
     parentIPFS: '',
@@ -62,17 +65,29 @@ class App extends React.PureComponent {
     return this.props.connectedAccount
   }
 
+  getVoteDescription = (voteID) => {
+    const { discussions } = this.props
+    const discussionIndex = discussions.findIndex(discussion =>
+      discussion.voteID == voteID
+    )
+    if(discussions[discussionIndex].description){
+      return {
+        type: 'Description',
+        value: discussions[discussionIndex].description,
+        creator: discussions[discussionIndex].creator ? discussions[discussionIndex].creator : ''
+      }
+    } else {
+      return {
+        type: 'Question',
+        value: discussions[discussionIndex].metadata,
+        creator: discussions[discussionIndex].creator ? discussions[discussionIndex].creator : ''
+      }
+    }
+  }
+
   handleInit = (voteID) => {
     const { api } = this.props
-    api
-      .newDiscussion(voteID)
-      .subscribe(
-        txHash => {
-          console.log('Tx: ', txHash)
-        },
-        err => {
-          console.error(err)
-        })
+    api.newDiscussion(voteID).toPromise()
   }
 
   handleComment = ({voteID, parentID, comment, parent}) => {
@@ -85,58 +100,59 @@ class App extends React.PureComponent {
               parent: parent,
               voteID: voteID
             }, null, 4)
-
-    console.log(json)
-    //console.log('Uploading to IPFS. Please wait...')
     ipfs.add(Buffer.from(json))
         .then(results => {
-
-          console.log('Hash: ', results[0].hash)
           const { digest, hashFunction, size } = getBytes32FromMultiash(results[0].hash)
-          console.log('VoteID: ', voteID)
-          console.log('ParentID ', parentID)
-          console.log('Digest: ', digest)
-          console.log('Hash function: ', hashFunction)
-          console.log('Size: ', size)
+          api.comment(voteID, parentID, digest, hashFunction, size).toPromise()
+
           this.handleSidepanelClose()
           this.setState({
             parentID: 0,
+            parentAuthor: '',
             parentComment: '',
             parentIPFS: '',
           })
-          api.comment(voteID, parentID, digest, hashFunction, size)
-             .subscribe(
-                txHash => {
-                  console.log('Transaction: ', txHash)
-
-                },
-                err => {
-                  console.error(err)
-                })
         })
+  }
+
+  handleUpvoteComment = (commentID) => {
+    const { api } = this.props
+    api.upvote(commentID).toPromise();
+  }
+
+  handleDownvoteComment = (commentID) => {
+    const { api } = this.props
+    api.downvote(commentID).toPromise();
+  }
+
+  handleUndoCommentVote = (commentID) => {
+    const { api } = this.props
+    api.undovote(commentID).toPromise();
   }
 
   handleButton = () => {
     const { voteID } = this.state
     if(voteID){
       this.launchCommentPanelNoParent()
-    } else {
-      this.launchDiscussionPanel()
     }
   }
 
   launchCommentPanelNoParent = () => {
-    const { metadata } = this.state
+    const { voteID } = this.state
+    const description = this.getVoteDescription(voteID)
+
     this.launchCommentPanel({
       parentID: 0,
-      parentComment: metadata,
+      parentAuthor: description.creator,
+      parentComment: description.value,
       parentIPFS: '',
     })
   }
 
-  launchCommentPanel = ({parentID, parentComment, parentIPFS}) => {
+  launchCommentPanel = ({parentID, parentAuthor, parentComment, parentIPFS}) => {
     this.setState({
       parentID,
+      parentAuthor,
       parentComment,
       parentIPFS,
       sidepanelOpened: true,
@@ -149,10 +165,10 @@ class App extends React.PureComponent {
     })
   }
 
-  handleView = (voteID, metadata) => {
+  handleView = (voteID, vote) => {
     this.setState({
       voteID: voteID,
-      metadata: metadata,
+      vote: vote,
       navigationItems: ['Parliament', `Vote ${voteID}`]
     })
   }
@@ -160,7 +176,7 @@ class App extends React.PureComponent {
   handleNavBack = () => {
     this.setState({
       voteID: null,
-      metadata: '',
+      vote: null,
       navigationItems: ['Parliament']})
   }
 
@@ -189,11 +205,16 @@ class App extends React.PureComponent {
       closed,
       connectedAccount,
       comments,
+      tokenSymbol,
+      tokenDecimals,
+      commentPoints,
       requestMenu,
     } = this.props
     const {
       voteID,
+      vote,
       parentID,
+      parentAuthor,
       parentComment,
       parentIPFS,
       sidepanelOpened,
@@ -201,7 +222,6 @@ class App extends React.PureComponent {
       ipfs,
       ipfsURL,
     } = this.state
-    console.log(ipfs)
 
     return (
       <Main assetsUrl="./aragon-ui">
@@ -214,15 +234,11 @@ class App extends React.PureComponent {
               onMenuOpen={requestMenu}
               navigationItems={navigationItems}
               handleNavBack={this.handleNavBack}
-              mainButton={{
-                label: navigationItems.length <= 1 ? (
-                    `Start Discussion`
-                  ):(
-                    `Comment`
-                  ),
+              mainButton={navigationItems.length > 1 && ({
+                label: 'Comment',
                 icon: <AssignTokensIcon />,
-                onClick: this.handleSidepanelOpen,
-              }}
+                onClick: this.launchCommentPanelNoParent,
+              })}
               smallViewPadding={0}
             >
             {(open.length > 0 || closed.length > 0) ? (
@@ -239,10 +255,17 @@ class App extends React.PureComponent {
                 ) : (
                   <Comments
                     voteID={voteID}
+                    vote={vote}
+                    tokenSymbol={tokenSymbol}
+                    tokenDecimals={tokenDecimals}
+                    title={this.getVoteDescription(voteID)}
                     comments={comments[voteID]}
+                    points={commentPoints}
                     connectedAccount={connectedAccount}
                     ipfsAPI={ipfs}
                     onReply={this.launchCommentPanel}
+                    onUpvote={this.handleUpvoteComment}
+                    onDownvote={this.handleDownvoteComment}
                   />
                 )}
               </div>
@@ -264,6 +287,7 @@ class App extends React.PureComponent {
                   opened={sidepanelOpened}
                   voteID={voteID}
                   parentID={parentID}
+                  parentAuthor={parentAuthor}
                   parentComment={parentComment}
                   parentIPFS={parentIPFS}
                   onSubmit={this.handleComment}

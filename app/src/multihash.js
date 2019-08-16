@@ -30,20 +30,15 @@ export function getBytes32FromMultiash(multihash) {
  * @returns {(string|null)} base58 encoded multihash string
  */
 export function getMultihashFromBytes32(multihash) {
-  console.log('2')
   const { digest, hashFunction, size } = multihash;
-  console.log('3')
   if (size === 0) return null;
-  console.log('4')
   // cut off leading "0x"
   const hashBytes = Buffer.from(digest.slice(2), 'hex');
-  console.log('5')
   // prepend hashFunction and digest size
   const multihashBytes = new (hashBytes.constructor)(2 + hashBytes.length);
   multihashBytes[0] = hashFunction;
   multihashBytes[1] = size;
   multihashBytes.set(hashBytes, 2);
-  console.log('6')
   return bs58.encode(multihashBytes);
 }
 

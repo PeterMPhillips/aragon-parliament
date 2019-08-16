@@ -32,11 +32,9 @@
   },
   "roles": [
     {
-      "name": "Create new discussion",
-      "id": "CREATE_ROLE",
-      "params": [
-        "VoteID"
-      ]
+      "name": "User can comment",
+      "id": "USER_ROLE",
+      "params": []
     }
   ],
   "path": "contracts/Parliament.sol"
